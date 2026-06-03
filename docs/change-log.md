@@ -58,6 +58,7 @@ repo if it contains device-specific identifiers.
 | 2026-06-03 | `claude/practical-gates-T1eE1` | `c3774f4` | Added session-start hook, .claude/settings.json, .markdownlint.json | CI/tooling setup | LOW | Hook ran clean (exit 0), markdownlint passes | Remove .claude/hooks/session-start.sh |
 | 2026-06-03 | `claude/practical-gates-T1eE1` | `1c3ad9c` | Added Codex review prompt | Documentation | LOW | Markdownlint clean | `git revert 1c3ad9c` |
 | 2026-06-03 | `claude/practical-gates-T1eE1` | (this commit) | Applied all 45 findings from Codex audit: hook bugs, git safety, docs accuracy, .gitignore, pre-push hook, setup script | Audit remediation | LOW | All docs lint clean; hook validated | `git revert` individual commits |
+| 2026-06-03 | `claude/practical-gates-T1eE1` | pending | Explored sunnypilot source (commit dfc3c98). Updated customization-map.md with verified file paths. Created planned-ui-changes.md with exact code diffs for first customizations. | Codebase exploration to prepare for UI work | LOW | No code changes — documentation only | `git revert` |
 
 ---
 
@@ -65,7 +66,7 @@ repo if it contains device-specific identifiers.
 
 | Date | Upstream Commit | Previous Upstream Commit | opendbc SHA | panda SHA | Conflicts | Notes |
 |---|---|---|---|---|---|---|
-| 2026-06-03 | (not yet fetched) | N/A | N/A | N/A | N/A | Initial setup only — upstream remote added but not fetched |
+| 2026-06-03 | `dfc3c98` | N/A | not initialized (submodule) | not initialized (submodule) | N/A | Shallow fetch (`--depth=1`). Commit message: "Revert DM: Lancia Delta HF Integrale model". sunny-upstream reset to this commit locally. Cannot push to origin (shallow clone limitation — full clone needed in dev env). |
 
 ---
 

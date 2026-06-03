@@ -22,21 +22,28 @@ Upstream: sunnypilot v2026.001.000+ (master branch)
 ## Repository Structure
 
 ```
-/docs/                    — All fork documentation (read this first)
-  eric-fork-overview.md   — Purpose, remotes, branch strategy, current status
-  upstream-sync-workflow.md — How to pull sunnypilot updates safely
+/docs/                         — All fork documentation (read this first)
+  eric-fork-overview.md        — Purpose, remotes, branch strategy, current status
+  upstream-sync-workflow.md    — How to pull sunnypilot updates safely
   device-install-and-rollback.md — How to install on Comma 3X / rollback
-  sunnylink-notes.md      — SunnyLink dashboard capabilities and limits
+  sunnylink-notes.md           — SunnyLink dashboard capabilities and limits
   volkswagen-tiguan-research.md — VW Tiguan compatibility research
-  customization-map.md    — What can/cannot be customized and at what risk
-  safety-boundaries.md    — Hard safety rules — MUST READ before any change
-  change-log.md           — Running log of all changes
-CLAUDE.md                 — This file (session context for Claude Code)
+  customization-map.md         — Verified file paths and risk levels for each change area
+  planned-ui-changes.md        — Exact code diffs ready to apply in dev environment
+  safety-boundaries.md         — Hard safety rules — MUST READ before any change
+  change-log.md                — Running log of all changes
+  codex-review-prompt.md       — Prompt for external code audit
+CLAUDE.md                      — This file (session context for Claude Code)
 ```
 
-The actual sunnypilot source code is NOT in this repository yet. The source code lives
-upstream at `github.com/sunnypilot/sunnypilot` and will be incorporated when the full
-development environment is set up. See `docs/eric-fork-overview.md` for the plan.
+**Source code status (2026-06-03):** sunnypilot master (`dfc3c98`) was fetched with
+`--depth=1` into the `sunny-upstream` branch (local only — cannot be pushed due to
+shallow clone). All sunnypilot Python files are available for exploration. Submodules
+(`opendbc_repo`, `panda`) are not initialized. File paths in `customization-map.md`
+and `planned-ui-changes.md` were verified against this fetch.
+
+For full code changes (creating the custom feature branches based on sunnypilot code),
+a full (non-shallow) clone is required. See `docs/eric-fork-overview.md` §10.
 
 ---
 

@@ -3,6 +3,10 @@
 This document maps potential customization areas in the sunnypilot codebase,
 categorized by risk level and specific to the `ericbranan/TiguanSunnyPilot` fork.
 
+**All file paths in this document were verified against sunnypilot master (commit dfc3c98,
+fetched 2026-06-03). The codebase uses Raylib Python UI (v2026.001.000+); the old Qt C++
+UI paths are no longer relevant.**
+
 **Risk scale:**
 - `LOW` — cosmetic or param change; safe to experiment
 - `MEDIUM` — behavioral but bounded; test carefully before driving
@@ -11,108 +15,184 @@ categorized by risk level and specific to the `ericbranan/TiguanSunnyPilot` fork
 
 ---
 
-## Category 1 — Safe UI / Visual Changes
+## Category 1 — Safe UI / Visual Changes (Branch: `custom/tiguan-ui`)
 
-| Area | Files / Directories | Purpose | Risk | Merge Conflict Likelihood | Test Method | Rollback |
-|---|---|---|---|---|---|---|
-| Onroad HUD layout | `selfdrive/ui/` (Qt) or `sunnypilot/selfdrive/ui/` (Raylib, v2026+) | What's shown on screen during driving | LOW | MEDIUM (UI changes frequently upstream) | Visual inspection on parked device | `git revert` the commit |
-| Alert text and messages | `selfdrive/ui/alerts.py` or similar | Driver alert wording | LOW | LOW | Read alerts on screen | `git revert` |
-| App icon and splash assets | `selfdrive/assets/` | Boot screen, icons | LOW | LOW | Boot device | `git revert` |
-| Settings UI labels | `selfdrive/ui/settings/` | Settings menu text | LOW | MEDIUM | Navigate settings | `git revert` |
-| Custom onroad info box | `selfdrive/ui/` or `sunnypilot/selfdrive/` | Speed, gear, nav info overlays | LOW | MEDIUM | Drive slowly in parking lot | `git revert` |
+### 1.1 Home Screen Fork Label
 
-**Note on UI (v2026+ change):** As of sunnypilot v2026.001.000, the UI was completely
-rewritten from Qt C++ to Raylib Python. This is a major change. All UI customizations must
-target the new Raylib Python codebase, not the old Qt code. Targeting the wrong layer will
-produce patches that do not apply.
-
-Look for Python files in `sunnypilot/selfdrive/` or a dedicated UI directory in the
-sunnypilot-specific path.
-
----
-
-## Category 2 — sunnypilot Settings and Parameter Defaults
-
-| Area | Files / Directories | Purpose | Risk | Merge Conflict | Test Method | Rollback |
-|---|---|---|---|---|---|---|
-| Default toggle values | `selfdrive/car/interfaces.py`, param init files | What toggles are on/off by default | LOW | LOW | Check settings screen | `git revert` |
-| Speed limit source priority | params, `sunnypilot/selfdrive/` | Which speed limit source is preferred | LOW | LOW | Drive on known speed-limited road | `git revert` |
-| Lane mode defaults | params | Default lane centering mode | LOW | LOW | Drive, observe behavior | `git revert` |
-| Alert sound profiles | `selfdrive/assets/sounds/` | Audio assets | LOW | LOW | Listen during drive | `git revert` |
-| Driving model default | `sunnypilot/selfdrive/` | Which NN model to use by default | MEDIUM | LOW | Parking lot test | `git revert` |
-
----
-
-## Category 3 — Volkswagen-Specific Behavior Settings
-
-| Area | Files / Directories | Purpose | Risk | Merge Conflict | Test Method | Rollback |
-|---|---|---|---|---|---|---|
-| Tiguan default ACC gap | params / platform config | Following distance preference | LOW | LOW | Drive behind a vehicle | `git revert` |
-| Lane assist mode for VW | VW platform params | Whether LKAS is on by default | LOW | LOW | Drive in marked lane | `git revert` |
-| Custom longitudinal toggles for MQB | sunnypilot VW-specific toggles | Custom stock longitudinal behavior | MEDIUM | MEDIUM | Controlled road test | `git revert` |
-| VW button mapping | `opendbc_repo/.../carstate.py` | Which stalk buttons do what | MEDIUM | LOW | Test buttons on parked car | `git revert` |
-
-**Note:** VW-specific param changes should be verified against what the sunnypilot docs
-say for VW MQB. Not all params apply to all vehicles.
-
----
-
-## Category 4 — Vehicle Interface Code
-
-| Area | Files / Directories | Purpose | Risk | Merge Conflict | Test Method | Rollback |
-|---|---|---|---|---|---|---|
-| Car state reader | `opendbc_repo/opendbc/car/volkswagen/carstate.py` | Parses CAN → car state | HIGH | LOW | CAN data logging, observe dashcam | `git revert` + verify fingerprint still works |
-| Car controller | `opendbc_repo/opendbc/car/volkswagen/carcontroller.py` | Sends CAN commands | HIGH | LOW | Static/parked test with monitoring | `git revert` immediately |
-| Platform config / specs | `opendbc_repo/opendbc/car/volkswagen/values.py` | Physical vehicle specs used in control | HIGH | LOW | Drive with telemetry monitoring | `git revert` |
-| Fingerprint data | `opendbc_repo/opendbc/car/volkswagen/fingerprints.py` | Vehicle identification | HIGH | LOW | Boot device in car | `git revert` |
-
-**WARNING:** Changes to vehicle interface code in `opendbc_repo` affect ALL vehicles
-using that code path, not just the Tiguan. This fork should not modify opendbc vehicle
-interface code unless adding a new fingerprint entry for a specific firmware variant,
-and only after thorough documentation and upstream PR submission.
-
----
-
-## Category 5 — Safety-Critical Code
-
-| Area | Files / Directories | Purpose | Risk | Merge Conflict | Test Method | Rollback |
-|---|---|---|---|---|---|---|
-| panda safety | `panda/board/safety/safety_volkswagen.h` | Hardware-enforced steering/braking limits | CRITICAL | N/A | N/A | N/A |
-| panda firmware | `panda/board/` | CAN relay firmware | CRITICAL | N/A | N/A | N/A |
-| openpilot safety model | `selfdrive/controls/lib/` | Software safety limits | CRITICAL | N/A | N/A | N/A |
-| Driver monitoring | `selfdrive/monitoring/` | Driver attentiveness detection | CRITICAL | N/A | N/A | N/A |
-| Watchdog / process monitor | `system/manager/` | Ensures processes are running correctly | CRITICAL | N/A | N/A | N/A |
-
----
-
-## Category 6 — Do Not Touch Without Expert Review
-
-The following areas must not be modified in this fork under any circumstances:
-
-| Area | Reason |
+| Field | Value |
 |---|---|
-| `panda/` (any file) | Hardware safety enforcement — changes require panda reflash and extensive testing |
-| `selfdrive/controls/lib/longitudinal_mpc*` | MPC solver for braking/accel — subtle bugs cause dangerous behavior |
-| `selfdrive/controls/lib/lateral_mpc*` | MPC solver for steering — same concern |
-| `opendbc/dbc/*.dbc` | CAN message definitions — wrong values can corrupt ALL vehicle signals |
-| `selfdrive/locationd/` | Localization and sensor fusion — affects route planning and safety |
-| `selfdrive/sensord/` | IMU and sensor drivers — affects safety-critical sensor fusion |
-| `SConstruct` build system | Build order changes can produce incorrect binaries |
-| `launch_*.sh` scripts | Boot sequence — breaking this bricks the device |
-| Calibration parameters | Stored in device params — should be auto-calibrated, not manually set |
+| File | `selfdrive/ui/layouts/home.py` |
+| Line | `231` |
+| Current code | `brand = "sunnypilot"` |
+| Purpose | Version string shown top-right of home screen: `"sunnypilot v2026.001.000"` |
+| Change | `brand = "TiguanSP"` |
+| Risk | LOW |
+| Test | Boot device (or run UI) — check top-right of home screen |
+| Rollback | `git revert <commit>` |
+
+### 1.2 Onroad HUD Renderer (base)
+
+| Field | Value |
+|---|---|
+| File | `selfdrive/ui/onroad/hud_renderer.py` |
+| Purpose | Draws current speed, set speed, steering wheel icon, status color |
+| Customizable | Color constants in `Colors` dataclass (lines ~38-50) |
+| Example | Change `ENGAGED = rl.Color(128, 216, 166, 255)` (green) to a different shade |
+| Risk | LOW (color only) — MEDIUM if changing layout geometry |
+| Test | Engage sunnypilot in parking lot, verify HUD display |
+
+### 1.3 sunnypilot Onroad UI Elements
+
+These live in `selfdrive/ui/sunnypilot/onroad/` and are Tiguan-relevant:
+
+| File | Element | Risk |
+|---|---|---|
+| `hud_renderer.py` | sunnypilot-specific HUD overlays | LOW–MEDIUM |
+| `speed_renderer.py` | Speed display style | LOW |
+| `turn_signal.py` | Visual turn signal indicators | LOW |
+| `blind_spot_indicators.py` | Blind spot warning overlays | LOW |
+| `smart_cruise_control.py` | Cruise control state display | LOW |
+| `speed_limit.py` | Speed limit display element | LOW |
+| `rocket_fuel.py` | Acceleration bar | LOW |
+| `road_name.py` | Road name overlay | LOW |
+| `rainbow_path.py` | Rainbow path effect | LOW (cosmetic) |
+
+### 1.4 Settings Screen Labels
+
+| Area | File | Risk |
+|---|---|---|
+| Main settings menu | `selfdrive/ui/layouts/settings/settings.py` | LOW |
+| Software settings | `selfdrive/ui/layouts/settings/software.py` | LOW |
+| Device settings | `selfdrive/ui/layouts/settings/device.py` | LOW |
+| Toggle labels | `selfdrive/ui/layouts/settings/toggles.py` | LOW |
+| sunnypilot settings hub | `selfdrive/ui/sunnypilot/layouts/settings/settings.py` | LOW |
+| Visuals settings | `selfdrive/ui/sunnypilot/layouts/settings/visuals.py` | LOW |
+| Steering settings | `selfdrive/ui/sunnypilot/layouts/settings/steering.py` | LOW |
+| Cruise settings | `selfdrive/ui/sunnypilot/layouts/settings/cruise.py` | LOW |
+| Display settings | `selfdrive/ui/sunnypilot/layouts/settings/display.py` | LOW |
+| VW brand settings | `selfdrive/ui/sunnypilot/layouts/settings/vehicle/brands/volkswagen.py` | LOW–MEDIUM |
+
+### 1.5 VW Brand Settings (currently empty, safe to add items)
+
+The VW brand settings hook (`volkswagen.py`) currently has an empty `update_settings()`
+method. This is the correct place to add Tiguan-specific settings items that appear in
+the Vehicle Settings panel only when a VW is detected.
 
 ---
 
-## Notes on the v2026.001.000 Architecture Change
+## Category 2 — sunnypilot Parameter Defaults (Branch: `custom/tiguan-params`)
 
-sunnypilot v2026.001.000 (May 2026) is a major rewrite. Key changes that affect
-customization:
+Parameter defaults are set at device initialization. The params system lives in
+`openpilot/common/params.py` (base) and sunnypilot may extend it.
 
-1. **UI rebuilt in Raylib Python** — all previous Qt C++ UI patches are invalid
-2. **MADS framework** — Modular Assistive Driving System replaces older engagement logic
-3. **Driving model manager** — model selection is now managed differently
-4. **New cereal schema** — message structures may have changed
+Visual toggle params enabled by default benefit Tiguan drivers immediately:
 
-Before making any UI changes, inspect the actual source code of the installed branch
-to confirm the current file structure. The locations described above are based on
-documentation — verify them in the actual repository.
+| Param Key | Default in SP | Recommended for Tiguan | Effect | Risk |
+|---|---|---|---|---|
+| `BlindSpot` | `0` (off) | `1` (on) | Shows BSM warnings if car has BSM | MEDIUM |
+| `ShowTurnSignals` | `0` (off) | `1` (on) | Visual turn signal indicator on HUD | LOW |
+| `StandstillTimer` | `0` (off) | `1` (on) | Timer shown when stopped | LOW |
+| `TrueVEgoUI` | `0` (off) | `1` (on) | Shows wheel-speed-based true speed | LOW |
+| `RocketFuel` | `0` (off) | `1` (on) | Real-time accel/decel bar | LOW |
+| `RoadNameToggle` | `0` (off) | `1` (on) | Shows road name (requires OSM data) | LOW |
+| `LongitudinalPersonality` | Standard | Standard | Follow distance mode | LOW |
+
+**Where to set defaults:** Look for a param initialization file in
+`sunnypilot/` or a first-boot setup path. The sunnypilot car params sync is in
+`sunnypilot/selfdrive/car/sync_sunnylink_params.py`.
+
+**Important:** SunnyLink dashboard can override these values. See `docs/sunnylink-notes.md`.
+
+---
+
+## Category 3 — Volkswagen-Specific Behavior
+
+### 3.1 VW Brand Settings Panel
+
+| File | `selfdrive/ui/sunnypilot/layouts/settings/vehicle/brands/volkswagen.py` |
+|---|---|
+| Current state | Empty — `update_settings(self): pass` |
+| Safe to add | VW-specific param toggles via `self.items.append(toggle_item_sp(...))` |
+| Risk | MEDIUM — adds behavior settings; test each one |
+
+### 3.2 Vehicle Platform Selector
+
+| File | `selfdrive/ui/sunnypilot/layouts/settings/vehicle/platform_selector.py` |
+|---|---|
+| Purpose | Lets user select the vehicle platform manually if fingerprinting fails |
+| Risk | MEDIUM — if wrong platform selected, wrong safety profile applied |
+
+### 3.3 opendbc VW Interface Files (submodule — do not modify)
+
+These files exist in the `opendbc_repo` submodule and are **read-only** for this fork:
+
+| File | Purpose |
+|---|---|
+| `opendbc_repo/opendbc/car/volkswagen/values.py` | Car specs, fingerprints, platform config |
+| `opendbc_repo/opendbc/car/volkswagen/carstate.py` | CAN → car state parser |
+| `opendbc_repo/opendbc/car/volkswagen/carcontroller.py` | Sends CAN commands |
+| `opendbc_repo/opendbc/car/volkswagen/fingerprints.py` | Vehicle ID fingerprints |
+| `opendbc_repo/opendbc/dbc/vw_mqb_2010.dbc` | MQB CAN message definitions |
+
+**These files are in a submodule. Modifying them in this fork requires maintaining a
+fork of the opendbc submodule, which adds significant complexity. Do not attempt this
+without a specific need and deep understanding of DBC/CAN implications.**
+
+---
+
+## Category 4 — Vehicle Interface Code (Do Not Modify)
+
+| Area | Files | Risk | Note |
+|---|---|---|---|
+| Car state reader | `opendbc_repo/opendbc/car/volkswagen/carstate.py` | HIGH | CAN parsing — wrong values corrupt signals |
+| Car controller | `opendbc_repo/opendbc/car/volkswagen/carcontroller.py` | HIGH | CAN output — wrong values move the car |
+| Platform config | `opendbc_repo/opendbc/car/volkswagen/values.py` | HIGH | Specs affect torque/speed control |
+| Fingerprint data | `opendbc_repo/opendbc/car/volkswagen/fingerprints.py` | HIGH | Wrong fingerprint → wrong safety profile |
+
+---
+
+## Category 5 — Safety-Critical Code (Off-Limits)
+
+| Area | Files | Risk |
+|---|---|---|
+| panda safety hooks | `panda/board/safety/safety_volkswagen.h` | CRITICAL |
+| panda firmware | `panda/board/` | CRITICAL |
+| Longitudinal MPC | `selfdrive/controls/lib/*mpc*` | CRITICAL |
+| Lateral MPC | `selfdrive/controls/lib/lateral*` | CRITICAL |
+| Driver monitoring | `selfdrive/monitoring/` | CRITICAL |
+| Process manager/watchdog | `system/manager/` | CRITICAL |
+| DBC files | `opendbc_repo/opendbc/dbc/*.dbc` | CRITICAL |
+| Launch scripts | `launch_*.sh` | CRITICAL |
+| SConstruct | `SConstruct` | CRITICAL |
+
+---
+
+## Planned Changes Summary
+
+See `docs/planned-ui-changes.md` for exact code diffs.
+
+### Priority 1 — Fork Label (ready to implement)
+- **File:** `selfdrive/ui/layouts/home.py:231`
+- **Change:** `brand = "sunnypilot"` → `brand = "TiguanSP"`
+- **Branch:** `custom/tiguan-ui`
+
+### Priority 2 — Default Params for Tiguan (ready to implement once param init path confirmed)
+- Set `BlindSpot`, `ShowTurnSignals`, `StandstillTimer`, `TrueVEgoUI` on by default
+- **Branch:** `custom/tiguan-params`
+
+### Priority 3 — VW Brand Settings Panel (research needed)
+- Add Tiguan-useful toggles to `volkswagen.py`
+- Need to verify which params are valid for VW MQB before adding
+- **Branch:** `custom/tiguan-params` or `custom/tiguan-ui`
+
+---
+
+## Merge Conflict Risk Assessment
+
+| Area | Upstream Change Frequency | Our Risk |
+|---|---|---|
+| `selfdrive/ui/layouts/home.py` | MEDIUM (UI evolving) | Low impact — single-line change |
+| `selfdrive/ui/onroad/hud_renderer.py` | MEDIUM | Modest risk — colors are stable |
+| `selfdrive/ui/sunnypilot/onroad/` | LOW-MEDIUM | SP-specific files change less often |
+| `selfdrive/ui/sunnypilot/layouts/settings/vehicle/brands/volkswagen.py` | LOW | Minimal upstream activity |
+| Param defaults | LOW | Stable section of codebase |
