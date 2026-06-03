@@ -73,14 +73,25 @@ requires the user's logged-in browser session):
 
 ---
 
-## 6. SunnyLink and This Fork
+## 6. SunnyLink and This Fork — Full Pairing Procedure
 
-After installing the custom fork (`custom/eric-main`), re-pairing steps:
+After a fresh fork install or if the device shows offline in SunnyLink:
 
-1. On device, go to `Settings → SunnyLink` and check connection status
-2. If disconnected, generate a new pairing code on device
-3. In SunnyLink dashboard, pair device with new pairing code
-4. Verify settings sync by making a small change in dashboard and confirming it applies
+**On the device:**
+1. Go to `Settings → SunnyLink`
+2. Check connection status — if offline, tap `Pair device` or `Reconnect`
+3. A 6-character pairing code appears on screen — note it immediately (codes expire)
+
+**In the browser:**
+1. Go to `sunnylink.ai/dashboard`
+2. Click `Add Device` or `Pair new device`
+3. Enter the pairing code from the device
+4. The device appears in your device list within ~1 minute
+
+**Verify the pairing:**
+1. In the dashboard, make a small non-critical settings change
+2. On the device, wait 30–60 seconds and check that the change applied
+3. Confirm drive data and device status are visible in the dashboard
 
 The custom fork should NOT break SunnyLink unless the `/sunnypilot/sunnylink/` code
 is modified or the fork is too far behind upstream (SunnyLink API changes can break

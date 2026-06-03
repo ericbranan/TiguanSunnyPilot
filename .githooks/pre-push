@@ -1,0 +1,23 @@
+#!/bin/sh
+# Pre-push hook: blocks any push to the sunnypilot upstream remote.
+# Install with: git config core.hooksPath .githooks
+#
+# This is a safety net in addition to the disabled upstream push URL.
+# Even if someone changes the push URL, this hook will reject the push.
+
+remote="$1"
+url="$2"
+
+case "$remote $url" in
+  *sunnypilot/sunnypilot* | \
+  *github.com:sunnypilot/sunnypilot* | \
+  *github.com/sunnypilot/sunnypilot*)
+    echo "BLOCKED: Never push to the sunnypilot upstream repository." >&2
+    echo "         Remote:  $remote" >&2
+    echo "         URL:     $url" >&2
+    echo "         Only push to origin (ericbranan/TiguanSunnyPilot)." >&2
+    exit 1
+    ;;
+esac
+
+exit 0

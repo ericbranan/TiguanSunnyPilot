@@ -3,28 +3,34 @@
 This document describes the exact procedure to pull updates from official sunnypilot into
 the `ericbranan/TiguanSunnyPilot` fork without losing custom changes.
 
-**Always read this document before syncing. Do not sync if the device is actively in use
-or if you are mid-development on a critical change.**
+**Always read this document before syncing. Do not sync if the device is actively
+in use or if you are mid-development on a critical change.**
 
 ---
 
-## Remote Setup (Already Done)
-
-Verify remotes before every sync:
+## Prerequisites — Verify Before Every Sync
 
 ```bash
+# 1. Correct remotes
 git remote -v
+# Expected:
+#   origin     https://github.com/ericbranan/TiguanSunnyPilot.git  (fetch)
+#   origin     https://github.com/ericbranan/TiguanSunnyPilot.git  (push)
+#   upstream   https://github.com/sunnypilot/sunnypilot.git        (fetch)
+#   upstream   DISABLED                                              (push)
+
+# 2. Push URL must be DISABLED
+git remote get-url --push upstream
+
+# 3. Safety config is active
+git config push.default          # must print: nothing
+git config remote.pushDefault    # must print: origin
+git config core.hooksPath        # must print: .githooks
 ```
 
-Expected output:
-```
-origin     https://github.com/ericbranan/TiguanSunnyPilot.git  (fetch)
-origin     https://github.com/ericbranan/TiguanSunnyPilot.git  (push)
-upstream   https://github.com/sunnypilot/sunnypilot.git        (fetch)
-upstream   DISABLED                                              (push)
-```
+If any of these are missing, re-run `scripts/setup-git-safety.sh` before continuing.
 
-If `upstream` is missing, re-add it:
+If `upstream` is missing entirely:
 ```bash
 git remote add upstream https://github.com/sunnypilot/sunnypilot.git
 git remote set-url --push upstream DISABLED
@@ -43,15 +49,15 @@ git branch --show-current
 
 If there are uncommitted changes:
 ```bash
-git add -p          # stage relevant changes only, review each hunk
+git add -p          # stage relevant changes only; review each hunk carefully
 git commit -m "wip: save before upstream sync"
 ```
 
-Push current work to origin:
+Push current work to origin using explicit remote:branch (required by push.default=nothing):
 ```bash
-git push origin custom/eric-main
-git push origin custom/tiguan-ui
-git push origin custom/tiguan-params
+git push origin custom/eric-main:custom/eric-main
+git push origin custom/tiguan-ui:custom/tiguan-ui
+git push origin custom/tiguan-params:custom/tiguan-params
 ```
 
 ---
@@ -59,40 +65,44 @@ git push origin custom/tiguan-params
 ## Step 2 — Fetch Upstream
 
 ```bash
+# Fetch source commits only (--no-tags = no release tag annotations)
 git fetch upstream --no-tags
+
+# To also fetch sunnypilot release tags for changelog comparison:
+git fetch upstream --tags
+# Note: tags are fetched but do not affect the merge procedure.
 ```
 
-For the first fetch, this will take significant time (sunnypilot is a large codebase with many submodules). Subsequent fetches are incremental.
-
-To also fetch submodule refs:
-```bash
-git fetch upstream --recurse-submodules=no  # fetch main repo only first
-```
+First fetch is large (~1 GB including submodule history). Subsequent fetches are
+incremental.
 
 ---
 
-## Step 3 — Review What Changed Upstream
+## Step 3 — Record Upstream State Before Applying
 
-Before applying anything, review what changed:
+Before applying anything, record what is about to change. This is your comparison
+baseline and should be saved to a scratch note (not committed).
 
 ```bash
+# New commits in upstream since your last sync
 git log sunny-upstream..upstream/master --oneline --no-merges
-```
 
-Review the diff summary:
-```bash
+# Summary of files changed
 git diff sunny-upstream..upstream/master --stat
-```
 
-Check for changes in safety-critical areas (exit immediately if these changed unexpectedly):
-```bash
-git diff sunny-upstream..upstream/master -- panda/ selfdrive/car/volkswagen/ opendbc_repo/
-```
+# Submodule pointer changes (critical — record both SHA values)
+git diff sunny-upstream..upstream/master -- .gitmodules
+git diff sunny-upstream..upstream/master -- opendbc_repo panda
 
-Check for changes to files you have customized:
-```bash
+# Check for safety-critical area changes — investigate any hit before continuing
+git diff sunny-upstream..upstream/master -- panda/ opendbc_repo/ selfdrive/controls/
+
+# Check for changes in areas you have customized
 git diff sunny-upstream..upstream/master -- selfdrive/ui/ sunnypilot/
 ```
+
+If safety-critical files changed unexpectedly, stop and read the sunnypilot release
+notes and community forum before proceeding.
 
 ---
 
@@ -105,31 +115,36 @@ git checkout sunny-upstream
 git merge --ff-only upstream/master
 ```
 
-If `--ff-only` fails, the branch has diverged (should never happen — investigate before proceeding):
+If `--ff-only` fails (should never happen — investigate before proceeding):
 ```bash
 git log --oneline --graph -20
 ```
 
 ---
 
-## Step 5 — Rebase Custom Branches
+## Step 5 — Check Submodule Status After Update
 
-Each custom branch is rebased onto the updated `sunny-upstream`. This replays your
-custom commits on top of the new upstream base.
+The upstream merge may have moved the `opendbc_repo` or `panda` submodule pointers.
+Record the new submodule SHAs before rebasing feature branches.
+
+```bash
+# Record submodule state on the updated sunny-upstream
+git submodule status --recursive
+
+# Compare to what was there before (from your notes in Step 3)
+# Accept upstream submodule pointer changes unless there is a reviewed reason not to.
+```
+
+---
+
+## Step 6 — Rebase Custom Feature Branches
+
+Each custom branch is rebased onto the updated `sunny-upstream`.
 
 ### Rebase custom/tiguan-ui
 ```bash
 git checkout custom/tiguan-ui
 git rebase sunny-upstream
-```
-
-If rebase conflicts arise:
-```bash
-# For each conflicting file:
-# 1. Open the file and resolve markers
-# 2. git add <resolved-file>
-# 3. git rebase --continue
-# If you need to abort: git rebase --abort
 ```
 
 ### Rebase custom/tiguan-params
@@ -138,105 +153,136 @@ git checkout custom/tiguan-params
 git rebase sunny-upstream
 ```
 
----
-
-## Step 6 — Rebuild custom/eric-main
-
-`custom/eric-main` is the integrated branch that will run on the device. Rebuild it
-from the updated custom branches.
-
+If rebase conflicts arise on either branch:
 ```bash
-git checkout custom/eric-main
-git rebase sunny-upstream
+# For each conflicting file:
+#   1. Open the file and resolve the conflict markers
+#   2. git add <resolved-file>
+#   3. git rebase --continue
+# To abort and start over: git rebase --abort
 ```
 
-Then merge in the rebased feature branches (if they are not already part of eric-main):
+**Conflict guidance by file type:**
+
+| File type | Action |
+|---|---|
+| UI file changed upstream AND in your branch | Keep upstream structure; re-apply your delta on top |
+| VW car interface file | Accept upstream entirely — do not carry custom changes here |
+| Parameter default changed upstream | Evaluate whether your override is still appropriate |
+| panda/ or safety files | Accept upstream entirely — never override safety code |
+| opendbc_repo submodule pointer | Accept upstream pointer — do not pin old submodule |
+
+---
+
+## Step 7 — Rebuild `custom/eric-main` (Do Not Rebase)
+
+`custom/eric-main` is an **integration branch** built by merging feature branches onto
+`sunny-upstream`. After an upstream sync it must be **rebuilt from scratch**, not rebased.
+Rebasing an integration branch replays old merge commits and creates confusing history.
+
 ```bash
-git merge --no-ff custom/tiguan-ui -m "merge: tiguan-ui after upstream sync"
-git merge --no-ff custom/tiguan-params -m "merge: tiguan-params after upstream sync"
+# Save the current eric-main as a reference (optional but recommended)
+git branch -m custom/eric-main custom/eric-main-old
+
+# Build fresh from updated sunny-upstream
+git checkout sunny-upstream
+git checkout -b custom/eric-main
+
+# Merge in each feature branch (already rebased in Step 6)
+git merge --no-ff custom/tiguan-ui   -m "merge: tiguan-ui after upstream sync $(date +%Y-%m-%d)"
+git merge --no-ff custom/tiguan-params -m "merge: tiguan-params after upstream sync $(date +%Y-%m-%d)"
+
+# Force-push the rebuilt branch (--force-with-lease verifies no one else pushed)
+git push --force-with-lease origin custom/eric-main:custom/eric-main
+
+# After confirming the new branch is correct, delete the old reference
+git branch -D custom/eric-main-old
 ```
 
 ---
 
-## Step 7 — Run Checks
+## Step 8 — Run Checks
 
-At minimum, check Python syntax on changed files:
 ```bash
+# Python syntax check on changed UI files (if source is present)
 python3 -m py_compile selfdrive/ui/*.py 2>&1 | head -20
-```
 
-If the sunnypilot test environment is set up:
-```bash
-# Run sunnypilot's own lint check (if tools are available)
-python3 -m pylint selfdrive/car/volkswagen/ --errors-only
-```
+# Pylint on VW car interface (errors only, if source is present)
+python3 -m pylint opendbc_repo/opendbc/car/volkswagen/ --errors-only 2>&1 | head -30
 
-Search for any accidentally staged secrets:
-```bash
-git diff HEAD | grep -iE "(token|secret|password|api_key|private_key)" | head -20
-```
-
----
-
-## Step 8 — Push to origin Only
-
-```bash
-git push origin sunny-upstream
-git push origin custom/tiguan-ui
-git push origin custom/tiguan-params
-git push origin custom/eric-main
-```
-
-**Never use `git push upstream` — the push URL is disabled, but double-check:**
-```bash
-git remote get-url --push upstream
-# Expected: DISABLED
+# Secret scan — use gitleaks for comprehensive coverage
+# Install: pip3 install gitleaks  OR  brew install gitleaks
+gitleaks detect --source . --no-git 2>&1 | head -30
+# Also scan full git history after initial upstream fetch:
+# gitleaks detect --source . 2>&1 | head -30
 ```
 
 ---
 
-## Step 9 — Update Device
+## Step 9 — Push to Origin Only
 
-Only after the above steps pass:
+All pushes require explicit remote:branch because `push.default = nothing`.
 
-1. Review the diff between old `custom/eric-main` and new one
+```bash
+git push origin sunny-upstream:sunny-upstream
+git push origin custom/tiguan-ui:custom/tiguan-ui
+git push origin custom/tiguan-params:custom/tiguan-params
+git push origin custom/eric-main:custom/eric-main
+# eric-main was already force-pushed in Step 7 — skip if already done
+```
+
+Verify before each push:
+```bash
+git remote get-url --push upstream   # Must print: DISABLED
+```
+
+---
+
+## Step 10 — Record the Sync in change-log.md
+
+Add an entry to `docs/change-log.md` with:
+- Date
+- Previous upstream commit SHA
+- New upstream commit SHA
+- New opendbc_repo submodule SHA
+- New panda submodule SHA
+- Summary of what changed upstream
+- Any conflicts resolved
+
+---
+
+## Step 11 — Update Device
+
+Only after Steps 1–10 pass:
+
+1. Review the diff: `git diff custom/eric-main-old custom/eric-main` (if you kept the old reference)
 2. Note any changes to VW-specific files or UI files
-3. If everything looks correct, proceed to device update
-
-See `docs/device-install-and-rollback.md` for the exact device update procedure.
+3. Confirm the testing ladder requirements in `docs/safety-boundaries.md`
+4. Proceed to device update per `docs/device-install-and-rollback.md`
 
 ---
 
 ## Frequency
 
-- **When to sync:** After sunnypilot publishes a new release, or when a specific upstream
-  fix is needed for your device.
-- **When NOT to sync:** During a road trip, immediately before driving, or when you
-  haven't reviewed the upstream changes.
-- **Recommended cadence:** Monthly, or after each sunnypilot major release.
-
----
-
-## Conflict Resolution Tips
-
-| Conflict Type | Approach |
+| Situation | Action |
 |---|---|
-| UI file changed upstream AND in your branch | Review both sides carefully. Keep upstream structure, apply your UI change on top. |
-| VW car interface file changed upstream | Accept upstream version entirely — do not customize VW car interface files. |
-| Parameter default changed upstream | Evaluate whether your override is still appropriate. |
-| panda/ or safety files changed | Accept upstream entirely. Never override safety code. |
-| opendbc_repo submodule pointer changed | Update your submodule pointer to match upstream. Do not pin an old submodule. |
+| sunnypilot publishes a new release | Sync within 1–2 weeks |
+| A specific upstream bug fix is needed | Sync immediately |
+| Before a road trip | Do NOT sync — device stability is more important |
+| Mid-development on a critical change | Do NOT sync — finish and push first |
+| Recommended minimum cadence | Monthly |
 
 ---
 
-## Emergency: Discard All Custom Changes
+## Emergency: Reset to Clean Upstream
 
-If sync results in a broken state and you need to reset to clean sunnypilot:
+If sync results in a broken state and you need to reset `custom/eric-main` to clean sunnypilot:
 
 ```bash
 git checkout sunny-upstream
-git branch -D custom/eric-main  # DESTRUCTIVE — ensure everything is pushed first
+git branch -D custom/eric-main      # DESTRUCTIVE — ensure everything is pushed first
 git checkout -b custom/eric-main sunny-upstream
+git push --force-with-lease origin custom/eric-main:custom/eric-main
 ```
 
 Then re-apply custom commits selectively:

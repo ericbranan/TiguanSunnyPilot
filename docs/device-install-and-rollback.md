@@ -2,7 +2,7 @@
 
 **Vehicle:** 2022 Volkswagen Tiguan SE  
 **Device:** Comma 3X  
-**Current Software:** sunnypilot dev (dev.sunnypilot.ai)
+**Current Software:** sunnypilot (dev.sunnypilot.ai)
 
 ---
 
@@ -10,238 +10,363 @@
 
 Do not install the fork until ALL of the following are true:
 
-- [ ] Private fork (`ericbranan/TiguanSunnyPilot`) exists and the target branch has been pushed
-- [ ] Branch `custom/eric-main` has been reviewed and is based on a known-good sunnypilot commit
-- [ ] The current device software version has been recorded (see "Record Current State" below)
-- [ ] The official sunnypilot rollback URL is known and tested in your head
-- [ ] The vehicle is parked safely and you have time to troubleshoot a failed boot
+- [ ] Fork (`ericbranan/TiguanSunnyPilot`) exists and target branch is pushed to origin
+- [ ] `custom/eric-main` has been reviewed and is based on a known-good sunnypilot commit
+- [ ] Current device software version has been recorded (see §4 below)
+- [ ] SSH access to the device is verified (see §0 below)
+- [ ] Official sunnypilot rollback URL is confirmed: `dev.sunnypilot.ai`
+- [ ] Device is parked safely and you have time to troubleshoot a failed boot
+- [ ] AGNOS version on device is recorded and confirmed compatible with the fork branch
+
+---
+
+## 0. SSH Preflight — Verify Before Touching the Device
+
+Every install and rollback procedure requires SSH. Confirm it works before starting.
+
+**Find the device IP:**
+
+1. On device: `Settings → Network` — the IP address is shown
+2. Alternatively: check your home router's DHCP client table for a device named `comma`
+
+**Enable SSH on device (if not already):**
+`Settings → Network → Advanced → Enable SSH`
+
+**Add your GitHub SSH key to the device:**
+`Settings → Network → SSH Keys → Add GitHub Username` → type your GitHub username → press Enter
+
+**Test SSH:**
+```bash
+ssh comma@<device-ip-address>
+# Expected: a shell prompt on the device, e.g.: comma@comma:~$
+```
+
+If SSH fails, do not proceed with the install. Resolve SSH access first.
 
 ---
 
 ## 1. Current Install Method (Official sunnypilot dev)
 
-The device currently runs sunnypilot via the dev install URL:
+The device runs sunnypilot via the dev install URL: `dev.sunnypilot.ai`
 
-```
-dev.sunnypilot.ai
-```
+This URL serves a prebuilt AGNOS installer for the C3X (tizi). The device checks for
+updates on the schedule configured in Settings → Software.
 
-This points to a prebuilt nightly build of sunnypilot. The device auto-updates from this URL on the update schedule configured in the device settings.
+Note: `dev.sunnypilot.ai` is a device-side installer endpoint, not a Git branch.
+It is not directly equivalent to the `__nightly` Git branch (see §7 for rollback details).
 
 ---
 
 ## 2. Custom Fork Install Method
 
-### Option A — Public Fork (Simplest, Recommended for Initial Testing)
+### Install Branch Naming
 
-If the fork `ericbranan/TiguanSunnyPilot` is set to **public** on GitHub:
+The branch `custom/eric-main` contains a forward slash. The `install.sunnypilot.ai/fork/`
+URL installer may not handle slash-separated branch names correctly (the slash adds a URL
+path segment).
 
+**Two options:**
+
+**Option A — Maintain a flat install branch (public fork, URL installer):**
+```bash
+# After rebuilding custom/eric-main, create or update the flat install branch:
+git checkout custom/eric-main
+git checkout -b eric-main      # no slash — safe for URL path
+git push origin eric-main:eric-main
+```
 Install URL:
 ```
-install.sunnypilot.ai/fork/ericbranan/custom-eric-main
+install.sunnypilot.ai/fork/ericbranan/eric-main
 ```
 
-This uses sunnypilot's own fork installer service. Enter this URL on the device at:
+**Option B — Install directly via SSH (public or private fork):**
+Use the exact branch name `custom/eric-main` in the SSH clone command.
+No URL installer needed. This works regardless of fork visibility.
+
+---
+
+### Option A — URL Installer (Public Fork, Flat Branch)
+
+On device, navigate to:
 `Settings → Software → Change Software → Enter URL`
 
-Or during device setup when prompted for Custom Software.
+Enter:
+```
+install.sunnypilot.ai/fork/ericbranan/eric-main
+```
 
-**Note:** The fork must be public. The installer cannot authenticate to a private GitHub repo.
+Or during initial device setup, select Custom Software and enter the URL above.
 
-### Option B — Private Fork via SSH (For Private Repos)
+The fork must be **public** on GitHub for this to work. The installer cannot
+authenticate to private repos.
 
-If the fork remains private, installation requires SSH access to the device.
+---
 
-Prerequisites:
-1. Device has SSH enabled: `Settings → Network → Advanced → Enable SSH`
-2. Your GitHub SSH public key is added to the device: `Settings → Network → SSH Keys → Add GitHub Username`
-3. You can SSH to the device: `ssh comma@<device-ip-address>`
+### Option B — SSH Clone (Public or Private Fork)
 
-Install command (run on device via SSH):
+Prerequisites: SSH working (see §0), device has internet access.
+
 ```bash
+ssh comma@<device-ip>
+
+# Backup current install first (see §5)
 cd /data
-mv openpilot openpilot.bak_$(date +%Y%m%d)   # backup current install
-git clone --depth=1 -b custom/eric-main https://github.com/ericbranan/TiguanSunnyPilot.git openpilot
+mv openpilot openpilot.bak_$(date +%Y%m%d_%H%M)
+
+# Clone the fork — shallow clone for speed and storage efficiency
+# Note: --depth=1 on the main clone does NOT propagate to submodules automatically.
+git clone --depth=1 -b custom/eric-main \
+  https://github.com/ericbranan/TiguanSunnyPilot.git openpilot
+
+# Initialize submodules with shallow depth (requires git 2.10+)
+# sunnypilot submodules include panda, opendbc_repo, tinygrad_repo (large)
 cd openpilot
-git submodule update --init --recursive
+git submodule update --init --recursive --depth=1
+
 sudo reboot
 ```
 
-**Important:** `--depth=1` gets only the latest commit (faster download, less storage).  
-Remove `--depth=1` if you need full git history on device for debugging.
-
-For a truly private repo, use an SSH deploy key instead of HTTPS:
+**Comma 3X git version check:**
 ```bash
-git clone --depth=1 -b custom/eric-main git@github.com:ericbranan/TiguanSunnyPilot.git openpilot
+git --version   # confirm >= 2.10 for --depth in submodule update
 ```
-(Requires SSH deploy key set up on the device for your GitHub repo.)
+
+---
+
+### Option B — Private Fork via Deploy Key
+
+For a private fork, use a dedicated read-only deploy key instead of your personal
+GitHub SSH key. This limits exposure if the device is compromised.
+
+**Generate deploy key (run on your development machine, NOT on device):**
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/tiguan_sunnypilot_deploy \
+  -C "tiguan-sunnypilot-readonly" -N ""
+# Creates:
+#   ~/.ssh/tiguan_sunnypilot_deploy      (private key — goes on device)
+#   ~/.ssh/tiguan_sunnypilot_deploy.pub  (public key — goes to GitHub)
+```
+
+**Add public key to GitHub:**
+GitHub → ericbranan/TiguanSunnyPilot → Settings → Deploy keys → Add deploy key  
+Paste the content of `~/.ssh/tiguan_sunnypilot_deploy.pub`  
+Check "Allow read access" only — do NOT check write access.
+
+**Copy private key to device:**
+```bash
+scp ~/.ssh/tiguan_sunnypilot_deploy comma@<device-ip>:/home/comma/.ssh/
+ssh comma@<device-ip> chmod 600 /home/comma/.ssh/tiguan_sunnypilot_deploy
+```
+
+**Configure SSH on device to use deploy key:**
+```bash
+ssh comma@<device-ip>
+cat >> /home/comma/.ssh/config << 'EOF'
+Host github-tiguan
+  HostName github.com
+  User git
+  IdentityFile /home/comma/.ssh/tiguan_sunnypilot_deploy
+  IdentitiesOnly yes
+EOF
+```
+
+**Clone using deploy key:**
+```bash
+git clone --depth=1 -b custom/eric-main \
+  git@github-tiguan:ericbranan/TiguanSunnyPilot.git openpilot
+```
 
 ---
 
 ## 3. SunnyLink Role
 
-SunnyLink (`sunnylink.ai`) is the remote management dashboard for sunnypilot. It can:
-- Remotely configure sunnypilot settings and toggles
-- Backup and restore parameter configurations
-- Monitor device status and drive data
-- Push settings changes remotely
+SunnyLink (`sunnylink.ai`) is the remote settings management dashboard. After a fork install:
 
-SunnyLink **cannot**:
-- Install a custom fork directly from the dashboard
-- Change the software source URL remotely (must be done on device)
-- Access a private GitHub repository
-- Replace the need for SSH for low-level recovery
+- SunnyLink may show the device as offline if the pairing was lost during the install
+- Re-pair by generating a new pairing code on the device and entering it in the dashboard
 
-After installing the custom fork, re-pair with SunnyLink if it disconnects.
+**SunnyLink cannot:** install forks, change software source URLs, or access private repos.
+
+See `docs/sunnylink-notes.md` for full capabilities.
 
 ---
 
 ## 4. Record Current Device State
 
-Before any software change, record the current state. SSH into device and run:
+SSH into device and capture the current state before any software change:
 
 ```bash
-# Software version
-cat /VERSION 2>/dev/null || cat /data/params/d/GitCommit
+ssh comma@<device-ip>
 
-# Current branch
+# Software version and commit
+cat /data/params/d/GitCommit
 cat /data/params/d/GitBranch
-
-# Current remote
 cat /data/params/d/GitRemote
 
-# Check if stock or custom fork
-ls -la /data/openpilot/.git/
+# AGNOS version (required for compatibility tracking)
+cat /VERSION 2>/dev/null || cat /etc/comma/agnos_version 2>/dev/null || uname -r
 
-# Record installed params (backup)
-cp -r /data/params /data/params_backup_$(date +%Y%m%d)
+# Record to a local file on your dev machine (not committed to the repo):
+# ssh comma@<device-ip> 'echo "GitCommit: $(cat /data/params/d/GitCommit)"
+#   echo "GitBranch: $(cat /data/params/d/GitBranch)"
+#   echo "AGNOS: $(cat /VERSION)"' > ~/tiguan-device-state-$(date +%Y%m%d).txt
 ```
-
-Save this output somewhere safe (not committed to the repo).
 
 ---
 
 ## 5. Backup Steps
 
-Before installing any new software:
+Always backup before installing:
 
 ```bash
-# SSH into device
 ssh comma@<device-ip>
+cd /data
 
 # Backup openpilot directory
-cd /data
 cp -r openpilot openpilot.bak_$(date +%Y%m%d_%H%M)
 
-# Backup params
+# Backup params (settings, calibration, SunnyLink pairing)
 cp -r params params.bak_$(date +%Y%m%d_%H%M)
 
-# Note current software version
-cat /VERSION
+# Verify backup exists before continuing
+ls -lh /data/openpilot.bak_*
 ```
 
-On the device, the backup will persist across reboots unless the user deliberately removes it. Storage on the Comma 3X is limited (~250GB total), so clean up old backups periodically.
+Storage note: the Comma 3X has limited internal storage. Check available space with
+`df -h /data` and remove old backups periodically.
 
 ---
 
 ## 6. Verification Steps After Installation
 
-After reboot following a new install:
+After reboot:
 
-1. Device should boot to the sunnypilot UI (not a crash loop)
-2. Check that the software shows the correct fork and branch:
-   - Settings → Software → shows correct version/commit
-3. Check that vehicle fingerprint is recognized (requires being in the car with ignition on)
-4. Check that SunnyLink reconnects and shows the device
-5. Drive in a safe, low-speed, parking lot environment first before highway use
-
-Via SSH:
+1. Device boots to sunnypilot UI (no crash loop or boot-loop)
+2. Check version: Settings → Software shows the expected commit or version
+3. Check via SSH:
 ```bash
-cat /data/params/d/GitBranch      # should show custom/eric-main
-cat /data/params/d/GitRemote      # should show ericbranan/TiguanSunnyPilot
-cat /data/params/d/GitCommit      # note commit hash
+cat /data/params/d/GitBranch      # should show: custom/eric-main
+cat /data/params/d/GitRemote      # should show: ericbranan/TiguanSunnyPilot
+cat /data/params/d/GitCommit      # note the commit hash
 ```
+1. Confirm vehicle fingerprint (requires ignition on, engine running):
+   - openpilot should show ready state, not dashcam-only mode
+1. Confirm SunnyLink reconnects (see §3 for re-pairing if needed)
 
 ---
 
-## 7. Rollback to Official sunnypilot dev
+## 7. SunnyLink Re-Pairing After Install
 
-If the custom fork fails to boot or behaves unexpectedly, rollback to official sunnypilot immediately.
+If SunnyLink shows the device offline after a fork install:
 
-### Method 1 — If Device Still Boots (Recommended)
+1. On device: `Settings → SunnyLink` → check connection status
+2. If disconnected: `Settings → SunnyLink → Pair device` → a pairing code appears
+3. In browser: go to `sunnylink.ai/dashboard` → add device → enter pairing code
+4. Verify: the device appears online in the dashboard within ~1 minute
 
-On device UI:
-```
-Settings → Software → Change Software → Enter URL
-```
+---
+
+## 8. Rollback to Official sunnypilot
+
+### Method 1 — URL Installer (Preferred — Device UI Still Works)
+
+On device: `Settings → Software → Change Software → Enter URL`
+
 Enter: `dev.sunnypilot.ai`
 
-Then: `Settings → Software → Download` → install → reboot.
+Then: Settings → Software → Download → install → reboot.
 
-### Method 2 — Via SSH (If UI is Broken)
+`dev.sunnypilot.ai` is a sunnypilot-hosted AGNOS installer endpoint for C3X dev builds.
+It is the same endpoint used to install sunnypilot originally.
+
+### Method 2 — SSH Clone (Device UI Broken or Unresponsive)
+
+For SSH rollback, use the `release-tizi` branch — the stable prebuilt branch for C3X
+(confirmed to exist in sunnypilot). Do NOT use `__nightly` for rollback; it is a
+nightly prebuilt that may be unstable.
 
 ```bash
 ssh comma@<device-ip>
 cd /data
+
+# Restore from backup if available (fastest option)
 rm -rf openpilot
-git clone --depth=1 -b __nightly https://github.com/sunnypilot/sunnypilot.git openpilot
-# OR restore from backup:
-# cp -r openpilot.bak_YYYYMMDD openpilot
+cp -r openpilot.bak_YYYYMMDD_HHMM openpilot
+sudo reboot
+
+# OR: clone official stable branch for C3X
+rm -rf openpilot
+git clone --depth=1 -b release-tizi \
+  https://github.com/sunnypilot/sunnypilot.git openpilot
+cd openpilot
+git submodule update --init --recursive --depth=1
 sudo reboot
 ```
 
 ### Method 3 — Factory Reset (Last Resort)
 
-On device (hold power button → Factory Reset), or via the recovery mode. This will erase all params including calibration, SunnyLink pairing, and drive routes.
+Hold the power button → select Factory Reset, or use the device recovery mode.
+
+**Warning:** Factory reset erases all params including SunnyLink pairing, calibration,
+and drive routes. After reset, enter `dev.sunnypilot.ai` as the install URL.
 
 ---
 
-## 8. Emergency Recovery Notes
+## 9. Subsequent Updates to the Custom Fork
 
-- The Comma 3X can always be factory reset via the power button long-press menu.
-- Factory reset does NOT brick the device — it reinstalls the base AGNOS OS.
-- After factory reset, simply enter `dev.sunnypilot.ai` as the install URL to get back to official sunnypilot.
-- The device hardware (camera, sensors, GPS) is not affected by software issues.
-
----
-
-## 9. Update Workflow for the Custom Fork
-
-After the fork is installed on device:
-
-1. Make changes on `custom/eric-main` branch in the development environment
-2. Test changes in a safe static environment (parked, no driving)
-3. Push updated `custom/eric-main` to `origin`
-4. SSH into device and pull:
+After the fork is running on device, update it when `custom/eric-main` is updated:
 
 ```bash
 ssh comma@<device-ip>
 cd /data/openpilot
+
 git fetch origin
 git checkout custom/eric-main
-git pull origin custom/eric-main
-git submodule update --recursive
+git pull origin custom/eric-main:custom/eric-main
+git submodule update --recursive --depth=1
 sudo reboot
 ```
 
-Or if the device was installed with depth=1 and needs a fresh install:
+Or re-clone for a clean install:
 ```bash
 cd /data
 rm -rf openpilot
-git clone --depth=1 -b custom/eric-main https://github.com/ericbranan/TiguanSunnyPilot.git openpilot
-cd openpilot && git submodule update --init --recursive
+git clone --depth=1 -b custom/eric-main \
+  https://github.com/ericbranan/TiguanSunnyPilot.git openpilot
+cd openpilot && git submodule update --init --recursive --depth=1
 sudo reboot
 ```
 
 ---
 
-## 10. Known Risks
+## 10. Drive Log Retrieval
+
+After a problematic drive, retrieve logs for analysis:
+
+```bash
+ssh comma@<device-ip>
+
+# Routes are stored here — each directory is one drive segment
+ls /data/media/0/realdata/
+
+# Copy a specific route to your dev machine
+scp -r comma@<device-ip>:/data/media/0/realdata/<route-id> ~/tiguan-logs/
+```
+
+Logs can also be viewed via SunnyLink dashboard (road-facing camera replays and
+metadata) without SSH access.
+
+---
+
+## 11. Known Risks
 
 | Risk | Mitigation |
 |---|---|
-| Fork fails to boot | Always keep rollback URL handy; maintain device backup |
-| Custom branch diverges too far from upstream | Regular upstream syncs (monthly min) |
-| VW fingerprinting fails after update | Check opendbc_repo submodule version; may need to update |
-| SunnyLink disconnects | Re-pair via SunnyLink dashboard after reinstall |
-| Private fork install breaks offline | Always have SSH access available |
-| Commit secret to fork | Use `git secret scan` before push; review staged changes |
+| Fork fails to boot | Always keep rollback URL handy; backup before install |
+| Custom branch diverges too far | Monthly upstream syncs; test on each sync |
+| VW fingerprinting fails after update | Check opendbc_repo submodule SHA; may need to update |
+| SunnyLink disconnects | Re-pair via dashboard after reinstall |
+| Private fork install broken offline | Always have SSH access confirmed before install |
+| AGNOS version mismatch | Record AGNOS version before and after; compare with sunnypilot release notes |
+| Submodule clone exceeds device storage | Use `--depth=1` on submodule update; clear old backups |
+| git < 2.10 on device (no submodule --depth) | Run `git --version` on device before install; update git if needed |

@@ -43,12 +43,13 @@ development environment is set up. See `docs/eric-fork-overview.md` for the plan
 ## Git Remotes
 
 ```
-upstream   https://github.com/sunnypilot/sunnypilot.git   [fetch only — push is DISABLED]
-origin     https://github.com/ericbranan/TiguanSunnyPilot  [fetch and push]
+upstream   https://github.com/sunnypilot/sunnypilot.git        [fetch only — push is DISABLED]
+origin     https://github.com/ericbranan/TiguanSunnyPilot.git  [fetch and push]
 ```
 
-**CRITICAL:** Never push to upstream. Never push to `sunnypilot/sunnypilot`. Always verify
-the remote before any push: `git remote get-url --push upstream` must return `DISABLED`.
+**CRITICAL:** Never push to upstream. Never push to `sunnypilot/sunnypilot`. The pre-push
+hook in `.githooks/pre-push` enforces this. Before any push, verify:
+`git remote get-url --push upstream` must return `DISABLED`.
 
 ---
 
@@ -108,12 +109,14 @@ git branch --show-current
 # See what's different from upstream (when upstream is fetched)
 git log sunny-upstream..upstream/master --oneline
 
-# Safe push
-git push origin <branch-name>
-
-# NEVER run
-git push upstream <anything>   # push URL is disabled, but don't attempt it
+# Safe push — push.default=nothing requires explicit remote:branch
+git push origin custom/eric-main:custom/eric-main
+git push origin custom/tiguan-ui:custom/tiguan-ui
+git push origin custom/tiguan-params:custom/tiguan-params
 ```
+
+Do not run any command beginning with `git push upstream` — the pre-push hook will
+block it, but there is no reason to attempt it.
 
 ---
 

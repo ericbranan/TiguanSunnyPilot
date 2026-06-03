@@ -3,9 +3,10 @@
 *.key
 *.p12
 *.pfx
-id_rsa
-id_ed25519
-id_ecdsa
+id_*
+*.pub
+authorized_keys
+known_hosts
 .env
 .env.*
 secrets.json
@@ -59,6 +60,15 @@ selfdrive/debug/
 # --- Calibration data (device-specific, not for repo) ---
 liveCalibration.json
 LiveCalibration/
+
+# --- sunnypilot specific generated/test state ---
+.hypothesis/
+selfdrive/car/tests/test_models_output/
+.venv/          # uv virtual environment at repo root
+
+# uv.lock is intentionally committed for reproducible builds.
+# If you want to exclude it, uncomment the next line:
+# uv.lock
 
 # --- Notes and scratch files ---
 scratch/

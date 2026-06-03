@@ -90,10 +90,17 @@ to HCA (steering) and ACC setpoints through the extended CAN bus.
 | `opendbc/car/volkswagen/carcontroller.py` | Sends CAN commands (steering, ACC) |
 | `opendbc/car/volkswagen/pqcarstate.py` | PQ platform car state (older VW) |
 | `opendbc/car/volkswagen/pqcarcontroller.py` | PQ platform controller |
-| `opendbc/car/volkswagen/fingerprints.py` | CAN message fingerprints for identification |
+| `opendbc/car/volkswagen/fingerprints.py` | CAN message fingerprints (confirmed present in current sunnypilot/opendbc master) |
 | `opendbc/dbc/vw_mqb_2010.dbc` | DBC: CAN message definitions for MQB platform |
 | `opendbc/dbc/vw_pq35_pq46_superb.dbc` | DBC: PQ platform (not relevant to 2022 Tiguan) |
 | `opendbc/car/volkswagen/interface.py` | OpenPilot car interface entry point |
+
+**Important:** The opendbc submodule structure can change between upstream releases.
+After the initial upstream fetch, verify these paths exist at the pinned submodule commit:
+```bash
+ls opendbc_repo/opendbc/car/volkswagen/
+ls opendbc_repo/opendbc/dbc/ | grep vw
+```
 
 ### sunnypilot Main Repo
 
@@ -178,19 +185,29 @@ panda firmware which runs independently of the Comma 3X software.
 
 ## 9. Longitudinal Control Notes
 
-For the 2022 Tiguan SE:
+Three distinct longitudinal control modes exist. These are often confused:
 
-- openpilot uses **stock longitudinal** by default — the factory ACC handles braking and
-  acceleration; openpilot adjusts the ACC setpoint
-- "openpilot longitudinal" (where OP controls braking directly) is **experimental and
-  not officially supported** for VW MQB in stock openpilot
-- sunnypilot may offer "Custom Stock Longitudinal" — this adjusts how the ACC setpoint
-  is modified, but the panda safety layer still limits actuation
-- If the 2022 Tiguan SE has `ACC High` (stop-and-go ACC), it supports follow-to-stop
-  and auto-resume; `ACC Low` requires driver resume after stops
+| Mode | How it works | VW MQB support | Panda involvement |
+|---|---|---|---|
+| **Factory stock ACC** | Vehicle's OEM ACC handles all braking/acceleration; openpilot only reads state | Always available if vehicle has ACC | Read-only on ACC bus |
+| **sunnypilot Custom Stock Longitudinal** | openpilot adjusts ACC setpoint more aggressively (speed limits, vision-based deceleration) — still uses factory ACC actuators | **Available for VW MQB in sunnypilot** | Setpoint adjustments within panda limits |
+| **openpilot direct longitudinal** | OP sends raw braking/acceleration CAN commands, bypassing factory ACC | Experimental and NOT validated for 2022 Tiguan SE | Would require panda to approve longitudinal commands for VW — not current default |
 
-**Verify ACC type:** Check the vehicle's ACC behavior — does it follow to a complete
-stop and resume automatically? If yes, you likely have ACC High.
+For this fork:
+- Use sunnypilot Custom Stock Longitudinal if desired — it is within bounds
+- Do NOT enable direct openpilot longitudinal without explicit upstream community validation for the 2022 Tiguan SE
+
+**ACC Type — Critical Open Question:**
+
+The 2022 Tiguan SE ACC type (High or Low) affects fundamental behavior:
+- `ACC High` (Traffic Jam Assist / Follow to Stop): follows to a complete stop, auto-resumes
+- `ACC Low` (standard ACC): requires driver to resume after a complete stop
+
+**How to determine ACC type before driving:**
+1. Check the original window sticker or original order summary for "Traffic Jam Assist" or "Follow to Stop"
+2. Check the owner's manual Adaptive Cruise Control section — ACC High vehicles describe stop-and-go behavior
+3. In the vehicle, check `Settings → Assist systems → Adaptive Cruise Control` for stop-and-go options
+4. Via OBD2: Use VCDS or OBD11 to read the gateway (J533) module coding — the ACC configuration is encoded there
 
 ---
 
@@ -220,10 +237,11 @@ cause unstable or oscillatory lane centering.
 |---|---|
 | Trim level | SE trim support not separately verified — should be same as base MQB |
 | 2022 hardware variant | May have combined gateway/BCM — verify harness physically before purchase |
-| ACC Low vs High | 2022 SE ACC type not confirmed — test in vehicle |
-| Longitudinal control | Stock ACC only — openpilot longitudinal is experimental/unsupported |
+| ACC type | 2022 SE ACC High vs Low not confirmed — determine before first use (see §9) |
+| sunnypilot Custom Stock Longitudinal | Available for MQB but not yet tested on 2022 Tiguan SE |
+| Direct openpilot longitudinal | NOT supported/validated for VW MQB — do not enable |
 | Emergency Lane Assist override | Tiguan has its own ELA that may interfere in some scenarios |
-| German/EU vs US firmware | US-spec Tiguan may have different firmware versions — fingerprint should handle this |
+| US firmware | US-spec Tiguan may have different firmware — fingerprint should handle this |
 
 ---
 
