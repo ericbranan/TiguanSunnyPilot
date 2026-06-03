@@ -1,0 +1,66 @@
+# --- Secrets and credentials (never commit these) ---
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+id_ecdsa
+.env
+.env.*
+secrets.json
+credentials.json
+*.token
+
+# --- Device identifiers (never commit these) ---
+dongle_id
+device_id
+*.dongle
+params_backup*/
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# --- IDE and editor ---
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# --- Build artifacts ---
+*.o
+*.so
+*.a
+*.out
+*.bin
+*.elf
+*.map
+cereal/gen/
+*.capnp.h
+
+# --- Log files ---
+*.log
+*.log.*
+selfdrive/debug/
+
+# --- Calibration data (device-specific, not for repo) ---
+liveCalibration.json
+LiveCalibration/
+
+# --- Notes and scratch files ---
+scratch/
+notes/
+TODO.md
